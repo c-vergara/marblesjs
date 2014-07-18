@@ -1,27 +1,32 @@
 $(document).ready(function() {
-  var max_width = 700;
-  var max_height = 600;
+  var inner_max = { x: 600, y: 500};
+  var outer_max = { x: 700, y: 600};
+  var inner_box = { 
+    x1: (outer_max.x - inner_max.x)/2,
+    y1: (outer_max.y - inner_max.y)/2,
+    x2: outer_max.x - (outer_max.x - inner_max.x)/2,
+    y2: outer_max.y - (outer_max.y - inner_max.y)/2
+  };
   var max_vel = 5
   var max_rad = 20
   var max_stain_life = 100
-  var paper = Raphael("canvas", max_width, max_height);
-  var marbles_count = 7;
+  var paper = Raphael("canvas", outer_max.x, outer_max.y);
+  var marbles_count = 10;
   var marbles = [];
   var anim_delay = 30;
   var vanish_delay = 80;
   var stains = [];
   var colors = [
-    "BCBDAC",
-    "CFBE27",
-    "F27435",
-    "F02475",
-    "3B2D38",
-    "2A044A",
-    "0B2E59",
-    "0D6759",
-    "7AB317",
-    "A0C55F"
+    ["69D2E7", "A7DBD8", "E0E4CC", "F38630", "FA6900"],
+    ["FE4365", "FC9D9A", "F9CDAD", "C8C8A9", "83AF9B"],
+    ["556270", "4ECDC4", "C7F464", "FF6B6B", "C44D58"],
+    ["490A3D", "BD1550", "E97F02", "F8CA00", "8A9B0F"],
+    ["351330", "424254", "64908A", "E8CAA4", "CC2A41"],
+    ["8C2318", "5E8C6A", "88A65E", "BFB35A", "F2C45A"],
+    ["2A044A", "0B2E59", "0D6759", "7AB317", "A0C55F"],
   ];
+  var color_palette = 0;
+  var total_collisions = 0;
   
   var generate_marbles = function(){
     while(true){
@@ -30,8 +35,8 @@ $(document).ready(function() {
         var _rad = parseInt(Math.random()*max_rad+20);
         marbles.push({
           pos: {
-            x: parseInt(Math.random()*max_width),
-            y: parseInt(Math.random()*max_height)
+            x: parseInt(Math.random()*inner_max.x),
+            y: parseInt(Math.random()*inner_max.y)
           },
           vel: {
             x: parseInt(Math.random()*max_vel),
@@ -39,7 +44,7 @@ $(document).ready(function() {
           },
           rad: _rad,
           mass: _rad*Math.PI*2,
-          color: Raphael.color("#"+colors[i%colors.length]),
+          color: Raphael.color("#"+colors[0][i%colors[0].length]),
           dead: false
         })
       }
@@ -52,8 +57,14 @@ $(document).ready(function() {
 
   var reset_paper = function(){
     paper.clear();
-    paper.rect(0, 0, max_width, max_height, 10).attr({fill: "#fff", stroke: "none"});
+    paper.rect(0, 0, outer_max.x, outer_max.y, 5).attr({fill: "#fff", stroke: "none"});
+    // paper.rect(inner_box.x1, inner_box.y1, inner_max.x, inner_max.y, 5).attr({fill: "#3B2D38", stroke: "none"});
+    paper.rect(inner_box.x1, inner_box.y1, inner_max.x, inner_max.y, 5).attr({fill: "#222222", stroke: "none"});
 
+    draw_stains();
+  }
+
+  var draw_stains = function() {
     for (var i = stains.length - 1; i >= 0; i--) {
       var _s = stains[i];
       paper.circle(_s.pos.x, _s.pos.y, _s.rad+21).attr({stroke: "none", fill: _s.color, "fill-opacity": .1*(_s.life/max_stain_life)});
@@ -66,11 +77,11 @@ $(document).ready(function() {
     for (var i = 0; i < marbles.length; i++) {
       var _m_i = marbles[i];
         // detect collision with walls
-      if(_m_i.pos.x + _m_i.rad >= max_width || _m_i.pos.x - _m_i.rad <= 0){
+      if(_m_i.pos.x + _m_i.rad >= inner_max.x || _m_i.pos.x - _m_i.rad <= 0){
         if(check_valid){ return true; }
         _m_i.vel.x *= -1;
       }
-      if(_m_i.pos.y + _m_i.rad >= max_height || _m_i.pos.y - _m_i.rad <= 0){
+      if(_m_i.pos.y + _m_i.rad >= inner_max.y || _m_i.pos.y - _m_i.rad <= 0){
         if(check_valid){ return true; }
         _m_i.vel.y *= -1;
       }
@@ -142,7 +153,7 @@ $(document).ready(function() {
         x: (reverse) ? (x * cos + y * sin) : (x * cos - y * sin),
         y: (reverse) ? (y * cos - x * sin) : (y * cos + x * sin)
     };
-}
+  }
 
   var update_positions = function(){
     for (var i = 0; i < marbles.length; i++) {
@@ -152,20 +163,23 @@ $(document).ready(function() {
   }
 
   var render_collision_effect = function(i,j){
+    total_collisions += 1;
     var _m_i = marbles[i];
     var _m_j = marbles[j];
 
-    if (_m_i.dead || _m_j.dead) {
-      return;
+
+    stains.push({pos: { x: _m_i.pos.x + inner_box.x1, y: _m_i.pos.y + inner_box.y1} , rad: _m_i.rad, color: _m_i.color, life: max_stain_life});
+    stains.push({pos: { x: _m_j.pos.x + inner_box.x1, y: _m_j.pos.y + inner_box.y1} , rad: _m_j.rad, color: _m_j.color, life: max_stain_life});
+    
+    if(total_collisions % 5 == 0){
+      color_palette += 1;
+      for (var i = marbles.length - 1; i >= 0; i--) {
+        marbles[i].color = Raphael.color("#"+colors[color_palette%colors.length][i%colors[color_palette%colors.length].length]);
+      };
     }
 
-    stains.push({pos: { x: _m_i.pos.x, y: _m_i.pos.y} , rad: _m_i.rad, color: _m_i.color, life: max_stain_life});
-    stains.push({pos: { x: _m_j.pos.x, y: _m_j.pos.y} , rad: _m_j.rad, color: _m_j.color, life: max_stain_life});
-    
-    // _m_i.color = Raphael.getColor();
-    // _m_j.color = Raphael.getColor();
-    _m_i.rad -= 1;
-    _m_j.rad -= 1;
+    _m_i.rad -= _m_i.dead ? 0:1;
+    _m_j.rad -= _m_j.dead ? 0:1;
 
     if(_m_i.rad <= 10) { _m_i.dead = true; _m_i.mass = 5000; _m_i.vel.x *= 0.1; _m_i.vel.y *= 0.1;}
     if(_m_j.rad <= 10) { _m_j.dead = true; _m_j.mass = 5000; _m_j.vel.x *= 0.1; _m_j.vel.y *= 0.1;}
@@ -173,7 +187,7 @@ $(document).ready(function() {
 
   var draw_marbles = function(){
     for (var i = 0; i < marbles.length; i++) {
-      paper.circle(marbles[i].pos.x, marbles[i].pos.y, marbles[i].rad)
+      paper.circle(marbles[i].pos.x + inner_box.x1, marbles[i].pos.y + inner_box.y1, marbles[i].rad)
       .attr({stroke: marbles[i].color, fill: marbles[i].color});
     };
   }
